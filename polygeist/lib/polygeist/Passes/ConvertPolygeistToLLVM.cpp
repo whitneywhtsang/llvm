@@ -690,7 +690,8 @@ struct SubIndexBarePtrOpLowering : public BaseSubIndexOpLowering {
 
     // Handle the general (non-SYCL) case first.
     if (convViewElemType ==
-        target.getType().cast<LLVM::LLVMPointerType>().getElementType()) {
+            target.getType().cast<LLVM::LLVMPointerType>().getElementType() ||
+        convSourceElemType.isa<VectorType>()) {
       rewriter.replaceOpWithNewOp<LLVM::GEPOp>(subViewOp, resType, target, idx);
       return success();
     }

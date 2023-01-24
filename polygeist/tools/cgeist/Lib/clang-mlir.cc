@@ -247,9 +247,11 @@ void MLIRScanner::init(FunctionOpInterface Func, const FunctionToEmit &FTE) {
             Init = Clean->getSubExpr();
           }
 
-          VisitConstructCommon(cast<clang::CXXConstructExpr>(Init),
-                               /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
-          continue;
+          if (auto *Cons = dyn_cast<clang::CXXConstructExpr>(Init)) {
+            VisitConstructCommon(Cons,
+                                 /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
+            continue;
+          }
         }
 
         if (Expr->isDelegatingInitializer()) {
@@ -1233,9 +1235,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
 
     Type ET = TypeSwitch<Type, Type>(PT.getElementType())
-                  .Case<LLVM::LLVMStructType>([FNum](LLVM::LLVMStructType ST) {
-                    return ST.getBody()[FNum];
-                  })
+                  .Case<sycl::TupleValueHolderType, LLVM::LLVMStructType>(
+                      [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                   .Case<LLVM::LLVMArrayType, MemRefType>(
                       [](auto Ty) { return Ty.getElementType(); });
     Value CommonGep = Builder.create<LLVM::GEPOp>(
@@ -1299,11 +1300,10 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                   sycl::ItemType, sycl::LocalAccessorBaseDeviceType,
                   sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
                   sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
-                  sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
-                [&](auto ElemTy) {
-                  return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum,
-                                                                 Shape);
-                });
+                  sycl::StreamType, sycl::SwizzledVecType,
+                  sycl::TupleValueHolderType, sycl::VecType>([&](auto ElemTy) {
+              return SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape);
+            });
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
@@ -1492,7 +1492,9 @@ Value MLIRScanner::GetAddressOfBaseClass(
                        Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)};
         auto PT = Val.getType().cast<LLVM::LLVMPointerType>();
         Type ET = TypeSwitch<Type, Type>(PT.getElementType())
-                      .Case<sycl::AccessorType, LLVM::LLVMStructType>(
+                      .Case<sycl::AccessorType,
+                            sycl::TupleCopyAssignableValueHolderType,
+                            LLVM::LLVMStructType>(
                           [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                       .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {
                         return AT.getElementType();

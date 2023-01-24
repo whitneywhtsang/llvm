@@ -275,7 +275,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
                     })
-                    .Case<mlir::sycl::ItemBaseType>([&](auto Ty) {
+                    .Case<mlir::sycl::ItemBaseType,
+                          mlir::sycl::TupleValueHolderType>([&](auto Ty) {
                       return mlir::MemRefType::get(Shape, Ty.getBody()[I],
                                                    MemRefLayoutAttrInterface(),
                                                    MT.getMemorySpace());
@@ -310,7 +311,15 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
                            Loc,
                            LLVM::LLVMPointerType::get(IT, PT.getAddressSpace()),
                            ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{I});
-                     });
+                     })
+                     .Case<mlir::sycl::TupleCopyAssignableValueHolderType>(
+                         [&](auto Ty) {
+                           mlir::Type MT = mlir::MemRefType::get(
+                               {ShapedType::kDynamic}, Ty.getBody()[I], {},
+                               PT.getAddressSpace());
+                           return Builder.create<polygeist::SubIndexOp>(
+                               Loc, MT, ToInit, getConstantIndex(I));
+                         });
         }
 
         auto Sub =
@@ -836,6 +845,8 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr) {
         false);
   if (auto PT = MElem.dyn_cast<mlir::LLVM::LLVMPointerType>())
     return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false);
+  if (auto NT = MElem.dyn_cast<mlir::NoneType>())
+    return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, NT), false);
   if (!MElem.isa<FloatType>())
     Expr->dump();
   auto Ft = MElem.cast<FloatType>();
@@ -1498,31 +1509,32 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
 
     if (auto UT = SE.val.getType().dyn_cast<mlir::MemRefType>()) {
-      auto MT = Glob.getTypes()
-                    .getMLIRType(
-                        (E->isLValue() || E->isXValue())
-                            ? Glob.getCGM().getContext().getLValueReferenceType(
-                                  E->getType())
-                            : E->getType())
-                    .dyn_cast<mlir::MemRefType>();
-
-      if (UT.getShape().size() != MT.getShape().size()) {
-        E->dump();
-        llvm::errs() << " se.val: " << SE.val << " ut: " << UT << " mt: " << MT
-                     << "\n";
-      }
-      assert(UT.getShape().size() == MT.getShape().size());
-      auto Ty = mlir::MemRefType::get(MT.getShape(), MT.getElementType(),
-                                      MemRefLayoutAttrInterface(),
-                                      UT.getMemorySpace());
-      if (Ty.getElementType().getDialect().getNamespace() ==
-              mlir::sycl::SYCLDialect::getDialectNamespace() &&
-          UT.getElementType().getDialect().getNamespace() ==
-              mlir::sycl::SYCLDialect::getDialectNamespace() &&
-          Ty.getElementType() != UT.getElementType()) {
-        return ValueCategory(
-            Builder.create<mlir::sycl::SYCLCastOp>(Loc, Ty, SE.val),
-            /*isReference*/ SE.isReference);
+      if (auto MT =
+              Glob.getTypes()
+                  .getMLIRType(
+                      (E->isLValue() || E->isXValue())
+                          ? Glob.getCGM().getContext().getLValueReferenceType(
+                                E->getType())
+                          : E->getType())
+                  .dyn_cast<mlir::MemRefType>()) {
+        if (UT.getShape().size() != MT.getShape().size()) {
+          E->dump();
+          llvm::errs() << " se.val: " << SE.val << " ut: " << UT
+                       << " mt: " << MT << "\n";
+        }
+        assert(UT.getShape().size() == MT.getShape().size());
+        auto Ty = mlir::MemRefType::get(MT.getShape(), MT.getElementType(),
+                                        MemRefLayoutAttrInterface(),
+                                        UT.getMemorySpace());
+        if (Ty.getElementType().getDialect().getNamespace() ==
+                mlir::sycl::SYCLDialect::getDialectNamespace() &&
+            UT.getElementType().getDialect().getNamespace() ==
+                mlir::sycl::SYCLDialect::getDialectNamespace() &&
+            Ty.getElementType() != UT.getElementType()) {
+          return ValueCategory(
+              Builder.create<mlir::sycl::SYCLCastOp>(Loc, Ty, SE.val),
+              /*isReference*/ SE.isReference);
+        }
       }
     }
 

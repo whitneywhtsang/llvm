@@ -1005,7 +1005,7 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *Decl) {
   for (auto *Sub : Decl->decls()) {
     if (auto *Vd = dyn_cast<clang::VarDecl>(Sub)) {
       VisitVarDecl(Vd);
-    } else if (isa<clang::TypeAliasDecl, clang::RecordDecl,
+    } else if (isa<clang::EnumDecl, clang::TypeAliasDecl, clang::RecordDecl,
                    clang::StaticAssertDecl, clang::TypedefDecl,
                    clang::UsingDecl, clang::UsingDirectiveDecl>(Sub)) {
     } else {
