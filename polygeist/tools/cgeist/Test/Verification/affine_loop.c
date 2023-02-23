@@ -15,8 +15,8 @@ void kernel_deriche(int w, int h, double alpha, double** y2) {
 // CHECK-NEXT:    %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:    %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:    affine.for %arg4 = 0 to %1 {
+// CHECK-NEXT:      %2 = affine.load %arg3[%arg4] : memref<?xmemref<?xf64>>
 // CHECK-NEXT:      affine.for %arg5 = 0 to %0 {
-// CHECK-NEXT:        %2 = affine.load %arg3[%arg4] : memref<?xmemref<?xf64>>
 // CHECK-NEXT:        affine.store %arg2, %2[-%arg5 + symbol(%0) - 1] : memref<?xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }

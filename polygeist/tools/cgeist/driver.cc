@@ -305,6 +305,8 @@ static int canonicalize(mlir::MLIRContext &Ctx,
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::replaceAffineCFGPass());
+    PM.addNestedPass<func::FuncOp>(
+        mlir::createAffineLoopInvariantCodeMotionPass());
     if (ScalarReplacement)
       PM.addNestedPass<func::FuncOp>(mlir::createAffineScalarReplacementPass());
   }

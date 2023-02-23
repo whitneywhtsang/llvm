@@ -174,9 +174,9 @@ int main(int argc, char** argv)
 // CHECK-NEXT:        affine.store %4, %arg5[%arg8, %arg9] : memref<?x1100xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      affine.for %arg9 = 0 to %[[i2]] {
+// CHECK-NEXT:        %3 = affine.load %arg6[%arg8, %arg9] : memref<?x1200xf64>
+// CHECK-NEXT:        %4 = arith.mulf %arg3, %3 : f64
 // CHECK-NEXT:        affine.for %arg10 = 0 to %[[i1]] {
-// CHECK-NEXT:          %3 = affine.load %arg6[%arg8, %arg9] : memref<?x1200xf64>
-// CHECK-NEXT:          %4 = arith.mulf %arg3, %3 : f64
 // CHECK-NEXT:          %5 = affine.load %arg7[%arg9, %arg10] : memref<?x1100xf64>
 // CHECK-NEXT:          %6 = arith.mulf %4, %5 : f64
 // CHECK-NEXT:          %7 = affine.load %arg5[%arg8, %arg10] : memref<?x1100xf64>
