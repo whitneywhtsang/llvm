@@ -12,9 +12,12 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/Ops.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
@@ -53,8 +56,9 @@ class OperationSideEffects {
 
 public:
   OperationSideEffects(const Operation &op, const AliasAnalysis &aliasAnalysis,
-                       const DominanceInfo &domInfo)
-      : op(op), aliasAnalysis(aliasAnalysis), domInfo(domInfo) {
+
+                       const DominanceInfo &domInfo, LoopLikeOpInterface &loop)
+      : op(op), aliasAnalysis(aliasAnalysis), domInfo(domInfo), loop(loop) {
     if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
       SmallVector<MemoryEffects::EffectInstance, 1> effects;
       memEffect.getEffects(effects);
@@ -118,6 +122,7 @@ private:
   const Operation &op; /// Operation associated with the side effects.
   const AliasAnalysis &aliasAnalysis; /// Alias Analysis reference.
   const DominanceInfo &domInfo;       /// Dominance information reference.
+  LoopLikeOpInterface &loop;          /// Loop reference.
 
   /// Side effects associated with reading resources.
   SmallVector<MemoryEffects::EffectInstance> readResources;
@@ -168,6 +173,39 @@ operator<<(llvm::raw_ostream &OS, const OperationSideEffects &ME) {
 
   return OS;
 }
+
+class LoopVersioningBuilder {
+public:
+  static std::unique_ptr<LoopVersioningBuilder>
+  create(LoopLikeOpInterface loop);
+
+  LoopVersioningBuilder(LoopLikeOpInterface loop) : builder(loop), loop(loop){};
+  LoopVersioningBuilder(const LoopVersioningBuilder &) = delete;
+  LoopVersioningBuilder(LoopVersioningBuilder &&) = delete;
+  void operator=(const LoopVersioningBuilder &) = delete;
+  void operator=(LoopVersioningBuilder &&) = delete;
+  virtual ~LoopVersioningBuilder() = default;
+
+  void versionLoop(sycl::SYCLAccessorSubscriptOp acc1,
+                   sycl::SYCLAccessorSubscriptOp acc2) const;
+
+protected:
+  static Block &getThenBlock(RegionBranchOpInterface ifOp) {
+    return ifOp->getRegion(0).front();
+  }
+  static Block &getElseBlock(RegionBranchOpInterface ifOp) {
+    return ifOp->getRegion(1).front();
+  }
+  mutable OpBuilder builder;
+  mutable LoopLikeOpInterface loop;
+
+private:
+};
+class SCFLoopVersioningBuilder : public LoopVersioningBuilder {
+public:
+  SCFLoopVersioningBuilder(LoopLikeOpInterface loop)
+      : LoopVersioningBuilder(loop) {}
+};
 
 class LoopGuardBuilder {
 public:
@@ -337,7 +375,7 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
   // If the given operation has side effects, check whether they conflict with
   // the side effects summarized in this class.
   if (auto MEI = dyn_cast<MemoryEffectOpInterface>(other)) {
-    OperationSideEffects sideEffects(other, aliasAnalysis, domInfo);
+    OperationSideEffects sideEffects(other, aliasAnalysis, domInfo, loop);
 
     // Checks for a conflicts on the given resource 'res' by applying the
     // supplied predicate function 'hasConflict'.
@@ -380,7 +418,42 @@ bool OperationSideEffects::conflictsWith(const Operation &other) const {
                 return true;
               };
 
-              return checkForConflict(readRes.getResource(), hasConflict);
+              bool res = checkForConflict(readRes.getResource(), hasConflict);
+              if (!res)
+                return res;
+
+              auto isVersionCandidate = [](const Operation &op,
+                                           const Operation &other,
+                                           LoopLikeOpInterface &loop) {
+                auto loadOp = dyn_cast<AffineLoadOp>(op);
+                auto storeOp = dyn_cast<AffineStoreOp>(other);
+                if (!loadOp || !storeOp)
+                  return false;
+
+                auto accSub1 = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+                    loadOp.getMemref().getDefiningOp());
+                auto accSub2 = dyn_cast_or_null<sycl::SYCLAccessorSubscriptOp>(
+                    storeOp.getMemref().getDefiningOp());
+                if (!accSub1 || !accSub2)
+                  return false;
+
+                if (accSub1.getAcc() == accSub2.getAcc())
+                  return false;
+
+                if (loop.isDefinedOutsideOfLoop(accSub1.getAcc()) &&
+                    loop.isDefinedOutsideOfLoop(accSub2.getAcc())) {
+
+                  LoopVersioningBuilder::create(loop)->versionLoop(accSub1,
+                                                                   accSub2);
+                  return true;
+                }
+                return false;
+              };
+              if (isVersionCandidate(op, other, loop)) {
+                llvm::errs() << "TODO version loop\n";
+                return false;
+              }
+              return true;
             })) {
       return true;
     }
@@ -470,6 +543,45 @@ OperationSideEffects::conflictsWithOperationInRegion(Region &rgn) const {
 Optional<Operation *> OperationSideEffects::conflictsWithOperationInLoop(
     LoopLikeOpInterface loop) const {
   return conflictsWithOperationInRegion(loop.getLoopBody());
+}
+
+std::unique_ptr<LoopVersioningBuilder>
+LoopVersioningBuilder::create(LoopLikeOpInterface loop) {
+  return TypeSwitch<Operation *, std::unique_ptr<LoopVersioningBuilder>>(
+             (Operation *)loop)
+      .Case<scf::ForOp>([](auto loop) {
+        return std::make_unique<SCFLoopVersioningBuilder>(loop);
+      });
+}
+
+void LoopVersioningBuilder::versionLoop(
+    sycl::SYCLAccessorSubscriptOp acc1,
+    sycl::SYCLAccessorSubscriptOp acc2) const {
+  NamedAttrList Attrs;
+  Attrs.set(mlir::sycl::SYCLDialect::getArgumentTypesAttrName(),
+            builder.getTypeArrayAttr(acc1.getType()));
+  Attrs.set(mlir::sycl::SYCLDialect::getFunctionNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr("get_pointer")));
+  Attrs.set(mlir::sycl::SYCLDialect::getTypeNameAttrName(),
+            FlatSymbolRefAttr::get(builder.getStringAttr("")));
+  auto ptr1 = builder.create<sycl::SYCLAccessorGetPointerOp>(
+      loop.getLoc(), acc1.getType(), acc1.getAcc(), Attrs);
+  auto ptr2 = builder.create<sycl::SYCLAccessorGetPointerOp>(
+      loop.getLoc(), acc1.getType(), acc1.getAcc(), Attrs);
+  auto m2p1 = builder.create<polygeist::Memref2PointerOp>(
+      loop.getLoc(),
+      LLVM::LLVMPointerType::get(ptr1.getType().getElementType()), ptr1);
+  auto m2p2 = builder.create<polygeist::Memref2PointerOp>(
+      loop.getLoc(),
+      LLVM::LLVMPointerType::get(ptr2.getType().getElementType()), ptr2);
+  auto cond = builder.create<LLVM::ICmpOp>(loop.getLoc(),
+                                           LLVM::ICmpPredicate::ne, m2p1, m2p2);
+  auto ifOp = builder.create<scf::IfOp>(loop.getLoc(), cond, true);
+  auto elseBodyBuilder = ifOp.getElseBodyBuilder();
+  elseBodyBuilder.setListener(builder.getListener());
+  elseBodyBuilder.clone(*loop.getOperation());
+  loop->moveBefore(&*getThenBlock(ifOp).begin());
+  llvm::errs() << *loop->getParentOfType<FunctionOpInterface>() << "\n";
 }
 
 //===----------------------------------------------------------------------===//
@@ -658,7 +770,7 @@ static bool hasConflictsInLoop(Operation &op, LoopLikeOpInterface loop,
                                const SmallPtrSetImpl<Operation *> &willBeMoved,
                                const AliasAnalysis &aliasAnalysis,
                                const DominanceInfo &domInfo) {
-  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
+  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo, loop);
 
   Optional<Operation *> conflictingOp =
       TypeSwitch<Operation *, Optional<Operation *>>((Operation *)loop)
@@ -761,7 +873,7 @@ static bool canBeHoisted(Operation &op, LoopLikeOpInterface loop,
   }
 
   // Do not hoist operations that allocate a resource.
-  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo);
+  const OperationSideEffects sideEffects(op, aliasAnalysis, domInfo, loop);
   if (sideEffects.allocatesResource()) {
     LLVM_DEBUG({
       llvm::dbgs() << "Operation: " << op << "\n";
