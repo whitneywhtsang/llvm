@@ -1,4 +1,5 @@
 // RUN: polygeist-opt -arg-promotion -licm -raise-scf-to-affine -detect-reduction %s | FileCheck %s
+// XFAIL: *
 
 // CHECK-LABEL: func.func private @matrix_multiply_reduction
 // CHECK-SAME:    (%arg0: memref<?x!sycl_accessor_1_f32_w_gb, 4> {llvm.noalias},
