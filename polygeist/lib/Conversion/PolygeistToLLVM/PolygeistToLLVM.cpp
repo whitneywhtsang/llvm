@@ -845,20 +845,18 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
   }
 };
 
-static Optional<Type> convertBodyType(llvm::ArrayRef<mlir::Type> body,
-                                      LLVMTypeConverter &converter) {
-  SmallVector<Type> convertedElemTypes;
-  convertedElemTypes.reserve(body.size());
-  if (failed(converter.convertTypes(body, convertedElemTypes)))
-    return std::nullopt;
-  return LLVM::LLVMStructType::getLiteral(&converter.getContext(), body);
-}
-
 static void
 populatePolygeistToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
-  typeConverter.addConversion([&](polygeist::StructType type) {
-    return convertBodyType(type.getBody(), typeConverter);
-  });
+  typeConverter.addConversion(
+      [&](polygeist::StructType type) -> Optional<Type> {
+        llvm::ArrayRef<Type> body = type.getBody();
+        SmallVector<Type> convertedElemTypes;
+        convertedElemTypes.reserve(body.size());
+        if (failed(typeConverter.convertTypes(body, convertedElemTypes)))
+          return std::nullopt;
+        return LLVM::LLVMStructType::getLiteral(&typeConverter.getContext(),
+                                                convertedElemTypes);
+      });
 }
 
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
