@@ -14,6 +14,7 @@ include "mlir/IR/OpBase.td"
 def Polygeist_Dialect : Dialect {
   let name = "polygeist";
   let cppNamespace = "::mlir::polygeist";
+  let useDefaultTypePrinterParser = 1;
   let description = [{}];
 }
 
