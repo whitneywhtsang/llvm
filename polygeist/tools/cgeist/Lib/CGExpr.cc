@@ -266,6 +266,10 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
             ET = mlir::MemRefType::get(Shape, ST.getBody()[I],
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
+          else if (auto ST = dyn_cast<polygeist::StructType>(ElemTy))
+            ET = mlir::MemRefType::get(Shape, ST.getBody()[I],
+                                       MemRefLayoutAttrInterface(),
+                                       MT.getMemorySpace());
           else if (sycl::isSYCLType(ElemTy))
             ET =
                 TypeSwitch<mlir::Type, mlir::MemRefType>(ElemTy)
@@ -292,14 +296,16 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
           const auto GEPIndex = static_cast<int32_t>(I);
           Next =
               TypeSwitch<mlir::Type, mlir::Value>(ET)
-                  .Case<LLVM::LLVMStructType>([=](auto ST) {
-                    return Builder.create<LLVM::GEPOp>(
-                        Loc,
-                        LLVM::LLVMPointerType::get(ST.getBody()[I],
-                                                   PT.getAddressSpace()),
-                        ToInit, llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
-                        /* inbounds */ true);
-                  })
+                  .Case<LLVM::LLVMStructType, polygeist::StructType>(
+                      [=](auto ST) {
+                        return Builder.create<LLVM::GEPOp>(
+                            Loc,
+                            LLVM::LLVMPointerType::get(ST.getBody()[I],
+                                                       PT.getAddressSpace()),
+                            ToInit,
+                            llvm::ArrayRef<mlir::LLVM::GEPArg>{0, GEPIndex},
+                            /* inbounds */ true);
+                      })
                   .Case<LLVM::LLVMArrayType>([=](auto AT) {
                     return Builder.create<LLVM::GEPOp>(
                         Loc,
@@ -466,8 +472,8 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   RecordDecl *Record = Expr->getType()->castAs<RecordType>()->getDecl();
   auto Field = Record->field_begin();
 
-  LLVM::LLVMStructType SubType =
-      cast<LLVM::LLVMStructType>(Glob.getTypes().getMLIRType(Expr->getType()));
+  auto SubType =
+      cast<polygeist::StructType>(Glob.getTypes().getMLIRType(Expr->getType()));
   assert(SubType.getBody().size() == 2 && "Expecting two fields");
 
   mlir::Value Alloca = createAllocOp(SubType, nullptr, /*memtype*/ 0,

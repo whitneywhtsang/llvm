@@ -21,6 +21,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistTypes.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
@@ -612,7 +613,7 @@ CodeGenTypes::getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
       // Fast-isel and the optimizer generally like
       // scalar values better than FCAs, so we flatten them if this is safe to
       // do for this argument.
-      auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(MLIRArgTy);
+      auto ST = dyn_cast<polygeist::StructType>(MLIRArgTy);
 
       CGEIST_WARNING({
         if (ST && ArgInfo.isDirect() && ArgInfo.getCanBeFlattened())
@@ -1343,8 +1344,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return mlir::MemRefType::get(2, SubType);
     }
     mlir::Type Types[2] = {SubType, SubType};
-    return mlir::LLVM::LLVMStructType::getLiteral(TheModule->getContext(),
-                                                  Types);
+    return polygeist::StructType::get(TheModule->getContext(), Types);
   }
 
   mlir::LLVM::TypeFromLLVMIRTranslator TypeTranslator(*TheModule->getContext());
@@ -1408,7 +1408,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (CXRD && CXRD->isUnion()) {
       assert(isSingleFieldUnion(CXRD) &&
              "Only handling single-field enumerations");
-      return LLVM::LLVMStructType::getLiteral(
+      return polygeist::StructType::get(
           TheModule->getContext(), getMLIRType(CXRD->field_begin()->getType()));
     }
 
@@ -1444,7 +1444,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
       return TypeCache[RT];
     }
 
-    return LLVM::LLVMStructType::getLiteral(TheModule->getContext(), Types);
+    return polygeist::StructType::get(TheModule->getContext(), Types);
   }
 
   const clang::Type *T = QT->getUnqualifiedDesugaredType();

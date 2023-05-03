@@ -323,14 +323,28 @@ ValueCategory MLIRScanner::callHelper(
     for (int I = 0; I < 3; I++) {
       Value Val = L0.val;
       if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
-        assert(MT.getShape().size() == 2);
+        if (auto ET = dyn_cast<polygeist::StructType>(MT.getElementType())) {
+        Blocks[I] = Builder.create<arith::IndexCastOp>(
+            Loc, IndexType::get(Builder.getContext()),
+            Builder.create<LLVM::LoadOp>(
+                Loc,
+                Builder.create<polygeist::SubIndexOp>(
+                    Loc, MemRefType::get(MT.getShape(), ET, MT.getLayout(), MT.getMemorySpace()),
+                    Val,
+                         Builder.create<arith::ConstantIntOp>(Loc, I, 32))));
+        } else {
+        assert(MT.getShape().size() == 2 && "WHITNEY");
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<memref::LoadOp>(
                 Loc, Val,
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
+        }
       } else {
+        assert(false && "WHITNEY");
+        assert(isa<LLVM::LLVMPointerType>(Val.getType()) && "WHITNEY");
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
+        assert(isa<LLVM::LLVMStructType>(PT.getElementType()) && "WHITNEY");
         auto ET = cast<LLVM::LLVMStructType>(PT.getElementType()).getBody()[I];
         Blocks[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
@@ -351,14 +365,17 @@ ValueCategory MLIRScanner::callHelper(
     for (int I = 0; I < 3; I++) {
       Value Val = T0.val;
       if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
-        assert(MT.getShape().size() == 2);
+        assert(MT.getShape().size() == 2 && "WHITNEY");
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),
             Builder.create<memref::LoadOp>(
                 Loc, Val,
                 ValueRange({getConstantIndex(0), getConstantIndex(I)})));
       } else {
+        assert(false && "WHITNEY");
+        assert(isa<LLVM::LLVMPointerType>(Val.getType()) && "WHITNEY");
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
+        assert(isa<LLVM::LLVMStructType>(PT.getElementType()) && "WHITNEY");
         auto ET = cast<LLVM::LLVMStructType>(PT.getElementType()).getBody()[I];
         Threads[I] = Builder.create<arith::IndexCastOp>(
             Loc, IndexType::get(Builder.getContext()),

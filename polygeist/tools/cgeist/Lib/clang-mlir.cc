@@ -1182,7 +1182,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   }
 
   if (auto PT = dyn_cast<LLVM::LLVMPointerType>(Val.getType())) {
-    if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType>(PT.getElementType())) {
+    if (!isa<LLVM::LLVMStructType, LLVM::LLVMArrayType, polygeist::StructType>(
+            PT.getElementType())) {
       llvm::errs() << "Function: " << Function << "\n";
       FD->dump();
       FD->getType()->dump();
@@ -1191,9 +1192,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
 
     Type ET = TypeSwitch<Type, Type>(PT.getElementType())
-                  .Case<LLVM::LLVMStructType>([FNum](LLVM::LLVMStructType ST) {
-                    return ST.getBody()[FNum];
-                  })
+                  .Case<LLVM::LLVMStructType, polygeist::StructType>(
+                      [FNum](auto ST) { return ST.getBody()[FNum]; })
                   .Case<LLVM::LLVMArrayType, MemRefType>(
                       [](auto Ty) { return Ty.getElementType(); });
     Value CommonGep = Builder.create<LLVM::GEPOp>(
@@ -1231,6 +1231,15 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   // clean the redundancy
   Value Result;
   if (auto ST = dyn_cast<LLVM::LLVMStructType>(MT.getElementType())) {
+    assert(FNum < ST.getBody().size() && "ERROR");
+
+    const auto ElementType = ST.getBody()[FNum];
+    const auto ResultType = MemRefType::get(
+        Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
+
+    Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
+                                                   getConstantIndex(FNum));
+  } else if (auto ST = dyn_cast<polygeist::StructType>(MT.getElementType())) {
     assert(FNum < ST.getBody().size() && "ERROR");
 
     const auto ElementType = ST.getBody()[FNum];
@@ -1450,7 +1459,8 @@ Value MLIRScanner::GetAddressOfBaseClass(
                        Builder.create<arith::ConstantIntOp>(Loc, FNum, 32)};
         auto PT = cast<LLVM::LLVMPointerType>(Val.getType());
         Type ET = TypeSwitch<Type, Type>(PT.getElementType())
-                      .Case<sycl::AccessorType, LLVM::LLVMStructType>(
+                      .Case<sycl::AccessorType, LLVM::LLVMStructType,
+                            polygeist::StructType>(
                           [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                       .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {
                         return AT.getElementType();

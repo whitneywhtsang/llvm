@@ -237,6 +237,7 @@ void CandidateOperand::peel(CallOpInterface callOp,
                             SmallVectorImpl<Value> &membersPeeled) const {
   OpBuilder builder(callOp);
   auto memRefType = cast<MemRefType>(val.getType());
+  assert(isa<LLVM::LLVMStructType>(memRefType.getElementType()) && "WHITNEY");
   auto structType = cast<LLVM::LLVMStructType>(memRefType.getElementType());
   unsigned numMembers = structType.getBody().size();
 

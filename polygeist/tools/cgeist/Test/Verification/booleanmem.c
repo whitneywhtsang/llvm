@@ -79,12 +79,13 @@ struct foo {
 };
 
 // CHECK-LABEL:   func.func @struct_get(
-// CHECK-SAME:                          %[[VAL_0:.*]]: !llvm.struct<(i32, i8)>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i32, i8)> : (i64) -> !llvm.ptr<struct<(i32, i8)>>
-// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_2]] : !llvm.ptr<struct<(i32, i8)>>
-// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr<struct<(i32, i8)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr<i8>
+// CHECK-SAME:                          %[[VAL_0:.*]]: !polygeist.struct<(i32, i8)>) -> i1
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : index
+// CHECK-NEXT:      %[[VAL_2:.*]] = memref.alloca() : memref<1x!polygeist.struct<(i32, i8)>>
+// CHECK-NEXT:      %cast = memref.cast %[[VAL_2]] : memref<1x!polygeist.struct<(i32, i8)>> to memref<?x!polygeist.struct<(i32, i8)>>
+// CHECK-NEXT:      affine.store %[[VAL_0]], %[[VAL_2]][0] : memref<1x!polygeist.struct<(i32, i8)>>
+// CHECK-NEXT:      %[[VAL_3:.*]] = "polygeist.subindex"(%cast, %[[VAL_1]]) : (memref<?x!polygeist.struct<(i32, i8)>>, index) -> memref<?xi8>
+// CHECK-NEXT:      %[[VAL_4:.*]] =  affine.load %[[VAL_3]][0] : memref<?xi8>
 // CHECK-NEXT:      %[[VAL_5:.*]] = arith.trunci %[[VAL_4]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_5]] : i1
 // CHECK-NEXT:    }
@@ -93,9 +94,10 @@ bool struct_get(struct foo s) {
 }
 
 // CHECK-LABEL:   func.func @struct_ptr_get(
-// CHECK-SAME:                              %[[VAL_0:.*]]: !llvm.ptr<struct<(i32, i8)>>) -> i1
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr<struct<(i32, i8)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr<i8>
+// CHECK-SAME:                              %[[VAL_0:.*]]: memref<?x!polygeist.struct<(i32, i8)>>) -> i1
+// CHECK-NEXT:      %c1 = arith.constant 1 : index
+// CHECK-NEXT:      %[[VAL_1:.*]] = "polygeist.subindex"(%[[VAL_0]], %c1) : (memref<?x!polygeist.struct<(i32, i8)>>, index) -> memref<?xi8>
+// CHECK-NEXT:      %[[VAL_2:.*]] = affine.load %[[VAL_1]][0] : memref<?xi8>
 // CHECK-NEXT:      %[[VAL_3:.*]] = arith.trunci %[[VAL_2]] : i8 to i1
 // CHECK-NEXT:      return %[[VAL_3]] : i1
 // CHECK-NEXT:    }

@@ -289,8 +289,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                          << " isArray: " << isArray << "\n";
           }
           assert(smt.getShape().back() == at.getNumElements());
-        } else {
-          auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
+        } else if (auto st =
+                       dyn_cast<polygeist::StructType>(pt.getElementType())) {
+          elty = st.getBody()[0];
+          assert(smt.getShape().back() == (ssize_t)st.getBody().size());
+        } else if (auto st =
+                       dyn_cast<LLVM::LLVMStructType>(pt.getElementType())) {
           elty = st.getBody()[0];
           assert(smt.getShape().back() == (ssize_t)st.getBody().size());
         }
@@ -329,8 +333,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
       if (auto at = dyn_cast<LLVM::LLVMArrayType>(pt.getElementType())) {
         elty = at.getElementType();
         assert(smt.getShape().back() == at.getNumElements());
-      } else {
-        auto st = dyn_cast<LLVM::LLVMStructType>(pt.getElementType());
+      } else if (auto st =
+                     dyn_cast<polygeist::StructType>(pt.getElementType())) {
+        elty = st.getBody()[0];
+        assert(smt.getShape().back() == (ssize_t)st.getBody().size());
+      } else if (auto st =
+                     dyn_cast<LLVM::LLVMStructType>(pt.getElementType())) {
         elty = st.getBody()[0];
         assert(smt.getShape().back() == (ssize_t)st.getBody().size());
       }
