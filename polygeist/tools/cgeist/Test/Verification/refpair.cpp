@@ -19,21 +19,23 @@ void kernel_deriche() {
 
 }
 
-// CHECK:   func @sub(%arg0: !llvm.ptr<struct<(i32, i32)>>)
+// CHECK:   func @sub(%arg0: memref<?x!polygeist.struct<(i32, i32)>>)
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<i32>
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!polygeist.struct<(i32, i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:     %1 = affine.load %0[0] : memref<?xi32>
 // CHECK-NEXT:     %2 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:     llvm.store %2, %0 : !llvm.ptr<i32>
+// CHECK-NEXT:     affine.store %2, %0[0] : memref<?xi32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
 // CHECK:   func @kernel_deriche()
 // CHECK-DAG:      %c32_i32 = arith.constant 32 : i32
-// CHECK-DAG:      %c1_i64 = arith.constant 1 : i64
-// CHECK:          %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr inbounds %0[0, 0] : (!llvm.ptr<struct<(i32, i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %c32_i32, %1 : !llvm.ptr<i32>
-// CHECK-NEXT:     call @sub0(%0) : (!llvm.ptr<struct<(i32, i32)>>) -> ()
+// CHECK-DAG:      %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %alloca = memref.alloca() : memref<1x!polygeist.struct<(i32, i32)>>
+// CHECK-NEXT:     %cast = memref.cast %alloca : memref<1x!polygeist.struct<(i32, i32)>> to memref<?x!polygeist.struct<(i32, i32)>>
+// CHECK-NEXT:     %0 = "polygeist.subindex"(%cast, %c0) : (memref<?x!polygeist.struct<(i32, i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:     affine.store %c32_i32, %0[0] : memref<?xi32>
+// CHECK-NEXT:     call @sub0(%cast) : (memref<?x!polygeist.struct<(i32, i32)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

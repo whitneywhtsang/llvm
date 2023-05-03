@@ -8,7 +8,7 @@
 
 extern "C" SYCL_EXTERNAL int test_int(int * __restrict__ a, int * __restrict__ b) {}
 
-// CHECK-MLIR-DAG: func.func @test_struct(%arg0: !llvm.ptr<struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}}, %arg1: !llvm.ptr<struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}})
+// CHECK-MLIR-DAG: func.func @test_struct(%arg0: memref<?x!polygeist.struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}}, %arg1: memref<?x!polygeist.struct<(i32)>, 4> {{{.*}}llvm.noalias{{.*}}})
 // CHECK-LLVM-DAG: define spir_func void @test_struct({ i32 } addrspace(4)* noalias {{.*}}%0, { i32 } addrspace(4)* noalias {{.*}}%1)
 struct S {
   int i;

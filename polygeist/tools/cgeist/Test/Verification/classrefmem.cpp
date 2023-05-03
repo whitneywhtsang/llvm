@@ -23,13 +23,14 @@ void Q(A& a) {
 // CHECK-NEXT:     affine.store %1, %arg0[0] : memref<?xi32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_Z1QR1A(%arg0: !llvm.ptr<!llvm.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     call @_ZN1A3addEv(%arg0) : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> ()
+// CHECK:   func @_Z1QR1A(%arg0: memref<?x!polygeist.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     call @_ZN1A3addEv(%arg0) : (memref<?x!polygeist.struct<(memref<?xi32>)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_ZN1A3addEv(%arg0: !llvm.ptr<!llvm.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr inbounds %arg0[0, 0] : (!llvm.ptr<!llvm.struct<(memref<?xi32>)>>) -> !llvm.ptr<memref<?xi32>>
-// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<memref<?xi32>>
+// CHECK:   func @_ZN1A3addEv(%arg0: memref<?x!polygeist.struct<(memref<?xi32>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!polygeist.struct<(memref<?xi32>)>>, index) -> memref<?xmemref<?xi32>>
+// CHECK-NEXT:     %1 = affine.load %0[0] : memref<?xmemref<?xi32>>
 // CHECK-NEXT:     call @_Z4oaddRi(%1) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
