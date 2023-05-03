@@ -457,7 +457,7 @@ protected:
         indices.push_back(zero);
 
         TypeSwitch<Type>(currType)
-            .Case<LLVM::LLVMStructType>([&](LLVM::LLVMStructType t) {
+            .Case<LLVM::LLVMStructType, polygeist::StructType>([&](auto t) {
               assert(t.getBody().size() == 1 && "Expecting single member type");
               currType = t.getBody()[0];
             })
