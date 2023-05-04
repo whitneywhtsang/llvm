@@ -1360,8 +1360,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     });
     assert(!RT->getDecl()->isInvalidDecl());
 
-    if (TypeCache.find(RT) != TypeCache.end())
+    if (TypeCache.find(RT) != TypeCache.end()) {
+      llvm::errs() << __LINE__ << "\n";
       return TypeCache[RT];
+    }
 
     llvm::Type *LT = CGM.getTypes().ConvertType(QT);
     LLVM_DEBUG({
@@ -1414,9 +1416,12 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
           TheModule->getContext(), getMLIRType(CXRD->field_begin()->getType()));
     }
 
-    if (Recursive)
-      TypeCache[RT] = LLVM::LLVMStructType::getIdentified(
-          TheModule->getContext(), ("polygeist@mlir@" + ST->getName()).str());
+    if (Recursive) {
+      llvm::errs() << __LINE__ << "\n";
+      TypeCache[RT] =
+          polygeist::StructType::get(TheModule->getContext(), {},
+                                     ("polygeist@mlir@" + ST->getName()).str());
+    }
 
     SmallVector<mlir::Type, 4> Types;
 
@@ -1441,8 +1446,10 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
         return TypeTranslator.translateType(anonymize(ST));
 
     if (Recursive) {
-      auto LR = TypeCache[RT].setBody(Types, /*isPacked*/ false);
-      assert(LR.succeeded());
+      StringRef Name = TypeCache[RT].getName();
+      TypeCache[RT] =
+          polygeist::StructType::get(TheModule->getContext(), Types, Name);
+      llvm::errs() << __LINE__ << "\n";
       return TypeCache[RT];
     }
 

@@ -4,3 +4,10 @@
 func.func @test_struct(%arg0: !polygeist.struct<(memref<i32>, i32)>) {
   return
 }
+
+// -----
+
+// CHECK: llvm.func @test_struct(%arg0: !llvm.struct<"polygeist@mlir@struct.Node", (ptr, i32)>)
+func.func @test_struct(%arg0: !polygeist.struct<"polygeist@mlir@struct.Node", (memref<i32>, i32)>) {
+  return
+}

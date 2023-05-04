@@ -18,9 +18,9 @@ double sum(struct Node* n) {
 // CHECK-NEXT:      %[[VAL_4:.*]] = scf.if %[[VAL_3]] -> (f64) {
 // CHECK-NEXT:        scf.yield %[[VAL_1]] : f64
 // CHECK-NEXT:      } else {
-// CHECK-NEXT:        %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"polygeist@mlir@struct.Node", (ptr, f64)>
+// CHECK-NEXT:        %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<"polygeist@mlir@struct.Node", (!llvm.ptr, f64)>
 // CHECK-NEXT:        %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> f64
-// CHECK-NEXT:        %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"polygeist@mlir@struct.Node", (ptr, f64)>
+// CHECK-NEXT:        %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !polygeist.struct<"polygeist@mlir@struct.Node", (!llvm.ptr, f64)>
 // CHECK-NEXT:        %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr -> !llvm.ptr
 // CHECK-NEXT:        %[[VAL_9:.*]] = func.call @sum(%[[VAL_8]]) : (!llvm.ptr) -> f64
 // CHECK-NEXT:        %[[VAL_10:.*]] = arith.addf %[[VAL_6]], %[[VAL_9]] : f64

@@ -44,9 +44,13 @@ class ModuleOp;
 class Type;
 
 namespace LLVM {
-class LLVMStructType;
 class LLVMPointerType;
 } // namespace LLVM
+
+namespace polygeist {
+class StructType;
+} // namespace polygeist
+
 } // namespace mlir
 
 namespace mlirclang {
@@ -60,7 +64,7 @@ class CodeGenTypes {
   mlir::OwningOpRef<mlir::ModuleOp> &TheModule;
   clang::CodeGen::CGCXXABI &TheCXXABI;
 
-  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> TypeCache;
+  std::map<const clang::RecordType *, mlir::polygeist::StructType> TypeCache;
   std::map<const clang::Type *, mlir::Type> BuiltinTypeCache;
 
 public:

@@ -27,8 +27,17 @@ class Polygeist_Type<string name, string typeMnemonic, list<Trait> traits = []>
 
 def Polygeist_StructType :
     Polygeist_Type<"Struct", "struct"> {
-  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body);
-  let assemblyFormat = "`<` `(` $body `)` `>`";
+  let parameters = (ins ArrayRefParameter<"mlir::Type">:$body,
+                        StringRefParameter<"name">:$name);
+  let builders = [
+    TypeBuilder<(ins "llvm::ArrayRef<mlir::Type>":$body),[{
+      return $_get($_ctxt, body, "");
+    }]>
+  ];
+  let extraClassDeclaration = [{
+    LogicalResult setBody(llvm::ArrayRef<mlir::Type>);
+  }]; 
+  let hasCustomAssemblyFormat = 1;
 }
 
 #endif // POLYGEIST_TYPES
